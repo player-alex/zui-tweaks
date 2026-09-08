@@ -126,11 +126,29 @@ requirement: Magisk is already a prerequisite, `FORCE_STOP_PACKAGES` is
 where force-stop is ignored and only a signal ends the process. The equivalent adb lines
 are still shown, and only shown, when root is refused.
 
-If LSPosed's dialogs are blocked by "앱이 인터페이스를 가리고 있어…", turn ZUI's freeform
-sidebar off in Settings - it is an overlay window and trips Android's obscured-touch
-protection. From a PC the equivalent is `adb shell settings put system enable_zuifreeformbar 0`
-(plus `enable_temp_zuifreeformbar`) and a force-stop of `com.zui.freeform.sidebar` - put both
-settings back to `1` once the LSPosed change is made.
+If LSPosed's dialogs are blocked by "앱이 인터페이스를 가리고 있어…", ZUI's freeform sidebar is
+the cause: it is an overlay window, and Android refuses to deliver a tap to a security-sensitive
+dialog while one is on screen. Nothing can consent to that dialog for you, so the only thing to
+automate is getting the overlay out of the way - the **Freeform sidebar** card in the Modules
+block does it over root.
+
+**When to turn it off:** immediately before enabling this module in LSPosed, or before changing
+its scope. **When to turn it back on:** as soon as that step is done - the freeform sidebar does
+not work while it is off, so this is a two-minute detour, not a setting to leave flipped. The card
+stays on screen, in a warning tone, for as long as the app has it off, so it cannot be forgotten.
+
+It captures the two values before clearing them and restores what it captured, rather than
+writing back a hardcoded `1` - a user who had the sidebar off already gets it left off. Revoking
+the app op would not work: `com.zui.freeform.sidebar` runs as the system UID, where
+`appops set SYSTEM_ALERT_WINDOW ignore` is ignored, so the `Settings.System` keys are what
+actually stop it. From a PC the equivalent is:
+
+```sh
+adb shell su -c 'settings put system enable_zuifreeformbar 0'
+adb shell su -c 'settings put system enable_temp_zuifreeformbar 0'
+adb shell su -c 'am force-stop com.zui.freeform.sidebar'
+# ... do the LSPosed step, then put both keys back to 1
+```
 
 Open the app once after installing. It writes its preferences file on first launch, and
 until that file exists every hook reports the settings as absent and falls back to its

@@ -65,6 +65,7 @@ import androidx.compose.ui.unit.dp
 import io.laelaps.zuitweaks.R
 import io.laelaps.zuitweaks.settings.Channels
 import io.laelaps.zuitweaks.settings.FolderBridge
+import io.laelaps.zuitweaks.settings.FreeformSidebar
 import io.laelaps.zuitweaks.settings.Group
 import io.laelaps.zuitweaks.settings.KeyboardModule
 import io.laelaps.zuitweaks.settings.Labels
@@ -92,6 +93,7 @@ private sealed interface ActionOwner {
     data object Keyboard : ActionOwner
     data object ExtDensity : ActionOwner
     data class Restart(val proc: Proc) : ActionOwner
+    data object Sidebar : ActionOwner
 }
 
 
@@ -126,6 +128,7 @@ fun SettingsScreen(store: SettingsStore, onOpenAppSelection: () -> Unit = {}) {
     // null while the first probe is in flight - "unknown" and "broken" must not look alike.
     var moduleStatus by remember { mutableStateOf<KeyboardModule.Status?>(null) }
     var extModStatus by remember { mutableStateOf<ZygiskModule.Status?>(null) }
+    var sidebarStatus by remember { mutableStateOf<FreeformSidebar.Status?>(null) }
     // Which card started the privileged action that is running, and which card the shell
     // output on screen belongs to. These used to be one screen-wide `busy` flag and one
     // output string, so pressing Install on either module card put BOTH cards into their
@@ -141,6 +144,7 @@ fun SettingsScreen(store: SettingsStore, onOpenAppSelection: () -> Unit = {}) {
         scope.launch {
             moduleStatus = withContext(Dispatchers.IO) { KeyboardModule.status() }
             extModStatus = withContext(Dispatchers.IO) { ZygiskModule.status() }
+            sidebarStatus = withContext(Dispatchers.IO) { FreeformSidebar.status(context) }
         }
     }
 
@@ -165,6 +169,7 @@ fun SettingsScreen(store: SettingsStore, onOpenAppSelection: () -> Unit = {}) {
             outputFor = owner
             moduleStatus = withContext(Dispatchers.IO) { KeyboardModule.status() }
             extModStatus = withContext(Dispatchers.IO) { ZygiskModule.status() }
+            sidebarStatus = withContext(Dispatchers.IO) { FreeformSidebar.status(context) }
             runningFor = null
             onDone(result)
         }
@@ -264,6 +269,38 @@ fun SettingsScreen(store: SettingsStore, onOpenAppSelection: () -> Unit = {}) {
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(top = 16.dp, bottom = 4.dp, start = 4.dp),
                 )
+            }
+            // Shown while it is ON (the state that blocks LSPosed) and while THIS app has it off
+            // (so it is never quietly left that way). Hidden when the user turned it off himself -
+            // then there is nothing here to offer and nothing to put back.
+            sidebarStatus?.let { sb ->
+                val ours = sb.state == FreeformSidebar.State.OFF && sb.suppressedByUs
+                if (sb.state == FreeformSidebar.State.ON || ours) {
+                    item(key = "sidebar") {
+                        NoticeCard(
+                            title = stringResource(R.string.sidebar_title),
+                            body = stringResource(
+                                if (ours) R.string.sidebar_body_off else R.string.sidebar_body_on,
+                            ),
+                            tone = if (ours) Tone.WARN else Tone.INFO,
+                        ) {
+                            Spacer(Modifier.height(10.dp))
+                            if (runningFor == ActionOwner.Sidebar) {
+                                Progress()
+                            } else if (ours) {
+                                Button(
+                                    enabled = !busy,
+                                    onClick = { rootAction(ActionOwner.Sidebar) { FreeformSidebar.restore(context) } },
+                                ) { Text(stringResource(R.string.action_sidebar_on)) }
+                            } else {
+                                OutlinedButton(
+                                    enabled = !busy,
+                                    onClick = { rootAction(ActionOwner.Sidebar) { FreeformSidebar.suppress(context) } },
+                                ) { Text(stringResource(R.string.action_sidebar_off)) }
+                            }
+                        }
+                    }
+                }
             }
             item(key = "keymod") { keyboardCard() }
             item(key = "extmod") {

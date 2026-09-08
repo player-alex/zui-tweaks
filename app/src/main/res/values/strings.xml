@@ -153,6 +153,11 @@
     <string name="appsel_restart_body">Settings changed. An app restart is required to apply.</string>
     <string name="appsel_restart_action">Restart</string>
     <string name="appsel_root_failed">Couldn\'t apply — root was refused.</string>
+    <string name="sidebar_title">Freeform sidebar (blocks LSPosed dialogs)</string>
+    <string name="sidebar_body_on">Turn this OFF right before you enable the module in LSPosed or change its scope. Android will not deliver taps to those dialogs while any overlay window is on screen, and ZUI’s freeform sidebar is one — the dialog shows “앱이 인터페이스를 가리고 있어…” and nothing happens. Turn it back ON as soon as that step is done: the sidebar itself does not work while it is off.</string>
+    <string name="sidebar_body_off">Still off, because this app turned it off. Turn it back on now that the LSPosed step is finished — ZUI’s freeform sidebar will not work until you do.</string>
+    <string name="action_sidebar_off">Turn off</string>
+    <string name="action_sidebar_on">Turn back on</string>
     <string name="section_modules">Modules</string>
     <string name="action_export">Export</string>
     <string name="action_import">Import</string>
