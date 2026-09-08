@@ -3,6 +3,7 @@ package io.laelaps.zuitweaks.xposed
 import android.content.ComponentName
 import android.content.Context
 import android.graphics.Rect
+import android.graphics.RectF
 import android.graphics.RenderEffect
 import android.graphics.Shader
 import android.os.Build
@@ -55,6 +56,11 @@ object DrawerFolderOverlay {
     // like a real workspace folder instead of the anchor's top-left corner.
     @Volatile private var pendingCenterFolder: View? = null
     @Volatile private var pendingDragLayer: ViewGroup? = null
+
+    // Folder.N as it was before the capture hook widened it, so mPadShowRect is handed back
+    // untouched to the pad-mode paths that also read it. Single-valued because the hook is
+    // identity-gated to one folder and opens happen on the main thread.
+    @Volatile private var savedCaptureRect: RectF? = null
 
     // While set, the native folder-open reveal (Folder implements ClipPathView; a ShapeDelegate
     // animates setClipPath each frame) is suppressed for THIS folder. Currently unused (we let the
@@ -266,6 +272,48 @@ object DrawerFolderOverlay {
                     }
                 }
             })
+            // Make the backdrop screenshot cover the whole screen, on the builds that do not.
+            //
+            // The capture method - g0() on 18.1.0, h0() on 18.2.0 - crops to the union of the folder
+            // icon's rect and Folder.N (mPadShowRect), then setPadding()s the backdrop view down to
+            // exactly that crop. 18.2.0 additionally clamps the crop to the DragLayer (verified: four
+            // Math.min/max pairs against getWidth/getHeight, against 18.1.0's two, which only do the
+            // union). So on 18.1.0 the capture is a small box around the folder and its icon, and the
+            // padding pins it there - the offset patch reported on that build.
+            //
+            // Widening Folder.N to the whole DragLayer before the capture makes the union full-screen
+            // on BOTH builds, so the crop is full-screen and the padding comes out zero by itself.
+            // That is the same end state 18.2.0 reaches on its own, reached the same way - rather than
+            // stretching a partial capture to fit, which is what the first attempt did and why the
+            // launcher behind the folder looked magnified.
+            //
+            // N is restored afterwards: it is mPadShowRect, which the pad-mode paths also read.
+            val cap = listOf("g0", "h0").sumOf { name -> runCatching {
+                XposedBridge.hookAllMethods(folderCls, name, object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        Logx.guard("Folder.$name:fullScreenCapture") {
+                            val folder = param.thisObject as? View ?: return@guard
+                            if (folder !== currentFolder) return@guard
+                            val dl = folder.parent as? ViewGroup ?: return@guard
+                            if (dl.width <= 0 || dl.height <= 0) return@guard
+                            val n = XposedHelpers.getObjectField(folder, "N") as? RectF ?: return@guard
+                            savedCaptureRect = RectF(n)
+                            n.set(0f, 0f, dl.width.toFloat(), dl.height.toFloat())
+                            Logx.i("backdrop: widened capture rect to ${dl.width}x${dl.height} for $name")
+                        }
+                    }
+
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        Logx.guard("Folder.$name:restoreN") {
+                            val saved = savedCaptureRect ?: return@guard
+                            savedCaptureRect = null
+                            val folder = param.thisObject as? View ?: return@guard
+                            (XposedHelpers.getObjectField(folder, "N") as? RectF)?.set(saved)
+                        }
+                    }
+                }).size
+            }.getOrDefault(0) }
+            Logx.i("drawer folder overlay: full-screen capture hook installed on g0+h0 ($cap method(s))")
             Logx.i("drawer folder overlay: handleClose safe-close hook installed")
 
             guardsInstalled = true
@@ -487,15 +535,12 @@ object DrawerFolderOverlay {
         runCatching {
             v0.javaClass.methods.firstOrNull { it.name == "setClipConsumer" && it.parameterCount == 1 }?.invoke(v0, null)
         }
-        // ...and the part that actually mattered on 18.1.0. The launcher screenshots itself into
-        // this view and then setPadding()s the view down to exactly the captured rect. On 18.2.0
-        // that rect is first clamped to the whole DragLayer, so the padding comes out <= 0 and the
-        // backdrop is genuinely full-screen. 18.1.0 has no such clamp: the rect is the tight union
-        // of the folder-icon rect and the folder body, so the padding is large and positive and the
-        // screenshot draws inside a small box anchored on the ICON - which is why the patch sat off
-        // to one side, and why the side changed with whichever folder was opened. Unclipping cannot
-        // help with that; only the padding can. FIT_XY then spreads 18.1.0's partial capture over
-        // the whole view, which a 70px blur makes indistinguishable from a full-screen one.
+        // A safety net for the padding, which the capture hook above should already have made zero.
+        // The launcher screenshots itself into this view and then setPadding()s the view down to
+        // exactly the captured rect; widening Folder.N makes that rect full-screen, so nothing is
+        // left to clear. If something IS cleared here, the widening did not take on this build and
+        // the backdrop is a partial capture pinned near the folder icon - the 18.1.0 symptom. The
+        // log line is the signal; it should never appear.
         fun unpad(where: String) = runCatching {
             if (v0.paddingLeft != 0 || v0.paddingTop != 0 || v0.paddingRight != 0 || v0.paddingBottom != 0) {
                 Logx.i("blur: backdrop padding $where was " +
@@ -503,7 +548,8 @@ object DrawerFolderOverlay {
                 v0.setPadding(0, 0, 0, 0)
             }
         }
-        runCatching { (v0 as? ImageView)?.scaleType = ImageView.ScaleType.FIT_XY }
+        // Deliberately no scaleType override: stretching a partial capture to fill the view is what
+        // made the launcher behind an open folder look magnified.
         unpad("at open")
         // The big-folder/taskbar path calls setPadding on this view again after this frame.
         runCatching { v0.post { Logx.guard("blur: repad") { unpad("next frame") } } }
