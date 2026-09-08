@@ -129,8 +129,9 @@ are still shown, and only shown, when root is refused.
 If LSPosed's dialogs are blocked by "앱이 인터페이스를 가리고 있어…", ZUI's freeform sidebar is
 the cause: it is an overlay window, and Android refuses to deliver a tap to a security-sensitive
 dialog while one is on screen. Nothing can consent to that dialog for you, so the only thing to
-automate is getting the overlay out of the way - the **Freeform sidebar** card in the Modules
-block does it over root.
+automate is getting the overlay out of the way - the **Freeform sidebar** card near the top of
+the settings screen does it over root. It sits above the Modules block rather than in it: it is a
+one-off helper, not something installed.
 
 **When to turn it off:** immediately before enabling this module in LSPosed, or before changing
 its scope. **When to turn it back on:** as soon as that step is done - the freeform sidebar does

@@ -258,6 +258,58 @@ fun SettingsScreen(store: SettingsStore, onOpenAppSelection: () -> Unit = {}) {
                 }
             }
 
+            // Not a module - a one-off helper for getting past LSPosed's dialogs - so it sits
+            // above the Modules block rather than inside it. Shown while the sidebar is ON (the
+            // state that blocks those dialogs) and while THIS app has it off, so it is never
+            // quietly left that way; hidden when the user turned it off himself, because then
+            // there is nothing to offer and nothing to put back.
+            sidebarStatus?.let { sb ->
+                val ours = sb.state == FreeformSidebar.State.OFF && sb.suppressedByUs
+                if (sb.state == FreeformSidebar.State.ON || ours) {
+                    item(key = "sidebar") {
+                        val tone = if (ours) Tone.WARN else Tone.INFO
+                        val (container, onContainer) = toneColors(tone)
+                        NoticeCard(
+                            title = stringResource(R.string.sidebar_title),
+                            body = stringResource(
+                                if (ours) R.string.sidebar_body_off else R.string.sidebar_body_on,
+                            ),
+                            tone = tone,
+                        ) {
+                            Spacer(Modifier.height(10.dp))
+                            if (runningFor == ActionOwner.Sidebar) {
+                                Progress()
+                            } else {
+                                // Same Row + tone-matched Button as the module cards, so the
+                                // action sits on the card's left edge exactly like theirs.
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Button(
+                                        enabled = !busy,
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = onContainer,
+                                            contentColor = container,
+                                        ),
+                                        onClick = {
+                                            rootAction(ActionOwner.Sidebar) {
+                                                if (ours) FreeformSidebar.restore(context)
+                                                else FreeformSidebar.suppress(context)
+                                            }
+                                        },
+                                    ) {
+                                        Text(
+                                            stringResource(
+                                                if (ours) R.string.action_sidebar_on
+                                                else R.string.action_sidebar_off,
+                                            ),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // Both Magisk modules are installed from here. They used to live in the sections
             // their settings belong to - Keyboard and Misc - which left two prerequisites at
             // opposite ends of a long scroll, and setting the device up is one job. The
@@ -269,38 +321,6 @@ fun SettingsScreen(store: SettingsStore, onOpenAppSelection: () -> Unit = {}) {
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(top = 16.dp, bottom = 4.dp, start = 4.dp),
                 )
-            }
-            // Shown while it is ON (the state that blocks LSPosed) and while THIS app has it off
-            // (so it is never quietly left that way). Hidden when the user turned it off himself -
-            // then there is nothing here to offer and nothing to put back.
-            sidebarStatus?.let { sb ->
-                val ours = sb.state == FreeformSidebar.State.OFF && sb.suppressedByUs
-                if (sb.state == FreeformSidebar.State.ON || ours) {
-                    item(key = "sidebar") {
-                        NoticeCard(
-                            title = stringResource(R.string.sidebar_title),
-                            body = stringResource(
-                                if (ours) R.string.sidebar_body_off else R.string.sidebar_body_on,
-                            ),
-                            tone = if (ours) Tone.WARN else Tone.INFO,
-                        ) {
-                            Spacer(Modifier.height(10.dp))
-                            if (runningFor == ActionOwner.Sidebar) {
-                                Progress()
-                            } else if (ours) {
-                                Button(
-                                    enabled = !busy,
-                                    onClick = { rootAction(ActionOwner.Sidebar) { FreeformSidebar.restore(context) } },
-                                ) { Text(stringResource(R.string.action_sidebar_on)) }
-                            } else {
-                                OutlinedButton(
-                                    enabled = !busy,
-                                    onClick = { rootAction(ActionOwner.Sidebar) { FreeformSidebar.suppress(context) } },
-                                ) { Text(stringResource(R.string.action_sidebar_off)) }
-                            }
-                        }
-                    }
-                }
             }
             item(key = "keymod") { keyboardCard() }
             item(key = "extmod") {
