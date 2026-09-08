@@ -92,6 +92,7 @@ object Schema {
     private val I = listOf(Proc.IME)
     private val T = listOf(Proc.TOUCHPAD)
     private val LT = listOf(Proc.LAUNCHER, Proc.TOUCHPAD)
+    private val LIT = listOf(Proc.LAUNCHER, Proc.IME, Proc.TOUCHPAD)
 
     val all: List<Setting> = listOf(
 
@@ -141,6 +142,8 @@ object Schema {
         NumberSetting("drawerDragSlop", 40, 5, 120, 5, Group.LAUNCHER, L),
         NumberSetting("folderDragSlop", 30, 5, 120, 5, Group.LAUNCHER, L),
         NumberSetting("groupZonePct", 36, 0, 80, 4, Group.LAUNCHER, L),
+        // Icons along one side of the drawer folder's preview: 2 -> 2x2, 3 -> 3x3, 4 -> 4x4.
+        NumberSetting("folderPreviewGrid", 2, 2, 4, 1, Group.LAUNCHER, L),
 
         // ---- misc ---------------------------------------------------------------
         // Consulted once when the touchpad hook decides whether to install, so restarting
@@ -148,6 +151,8 @@ object Schema {
         Toggle("touchpadPortrait", true, Group.MISC, T),
         Toggle("virtualCursor", true, Group.MISC, T),
         Toggle("control", true, Group.MISC, L),
+        // Every hooked process writes its own file, so this one is owned by all of them.
+        Toggle("debugLog", false, Group.MISC, LIT),
     )
 
     val byGroup: List<Pair<Group, List<Setting>>> =

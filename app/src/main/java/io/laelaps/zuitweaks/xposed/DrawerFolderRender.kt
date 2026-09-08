@@ -67,7 +67,8 @@ object DrawerFolderRender {
 
     private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
 
-    fun install(cl: ClassLoader, probe: Boolean = false, drawerOrder: Boolean = false) {
+    fun install(cl: ClassLoader, probe: Boolean = false, drawerOrder: Boolean = false, previewGrid: Int = 2) {
+        previewSide = previewGrid.coerceIn(2, 4)
         classLoader = cl
         drawerOrderEnabled = drawerOrder
         hookListTransform(cl)
@@ -281,9 +282,21 @@ object DrawerFolderRender {
     }
 
     /** Drop member apps; insert one synthetic folder AppInfo at each group's first-member spot. */
+    /**
+     * An app dragged out of an open folder whose drag has not been released yet.
+     *
+     * It is still a member in [FolderStore] - whether it really leaves is only decided when the
+     * drag ends - but it must already render as an ordinary top-level icon, because that is what
+     * the drawer reorder positions and what the user is dragging. So membership is suppressed here
+     * for the length of the gesture rather than by writing the database early.
+     */
+    @Volatile var pendingDragOut: String? = null
+
     private fun transform(d: List<Any>, groups: List<FolderStore.Group>, cl: ClassLoader): List<Any> {
         val compToGroup = HashMap<String, FolderStore.Group>()
         for (g in groups) for (c in g.members) compToGroup[c] = g
+        // Out of the folder for now: top-level icon, and absent from the folder's own preview.
+        pendingDragOut?.let { compToGroup.remove(it) }
 
         // collect member AppInfos per group (in drawer order) for the preview + overlay
         val membersByGroup = HashMap<Long, ArrayList<Any>>()
@@ -707,21 +720,34 @@ object DrawerFolderRender {
         return sb.toString().trim()
     }
 
-    /** A subtle rounded background + up-to-4 member thumbnails, all confined to [rect]. */
+    /**
+     * How many thumbnails a side of the drawer folder's preview holds - 2, 3 or 4.
+     *
+     * This preview is drawn here, not by the launcher: the drawer folder is a synthetic AppInfo
+     * whose icon is a bitmap we composite. So unlike the OPEN folder's grid - which comes from
+     * DeviceProfile and is 4x4 on this device with no alternative configured anywhere in the
+     * launcher - this number is ours to choose, and worth offering.
+     */
+    @Volatile private var previewSide = 2
+
+    /** A subtle rounded background + up to [previewSide]^2 member thumbnails, confined to [rect]. */
     private fun drawFolderComposite(canvas: Canvas, rect: Rect, members: List<Any>) {
-        val icons = members.mapNotNull { iconOf(it) }.take(4)
+        val n = previewSide.coerceIn(2, 4)
+        val icons = members.mapNotNull { iconOf(it) }.take(n * n)
         if (icons.isEmpty()) return
         val side = minOf(rect.width(), rect.height()).toFloat()
         val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x26FFFFFF }   // subtle, NOT solid white
         val r = side * 0.28f
         canvas.drawRoundRect(RectF(rect.left.toFloat(), rect.top.toFloat(), rect.right.toFloat(), rect.bottom.toFloat()), r, r, bgPaint)
-        val pad = side * 0.08f
-        val cell = (side - pad * 3f) / 2f
+        // Padding shrinks as the grid grows, so a 4x4 preview does not spend most of the icon on
+        // gaps. At n=2 this is the 0.08 the 2x2 layout always used, so that case is unchanged.
+        val pad = side * 0.16f / n
+        val cell = (side - pad * (n + 1)) / n
         val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
         icons.forEachIndexed { i, ic ->
             val sw = if (ic.config == Bitmap.Config.HARDWARE) ic.copy(Bitmap.Config.ARGB_8888, false) else ic
-            val col = i % 2
-            val row = i / 2
+            val col = i % n
+            val row = i / n
             val left = rect.left + pad + col * (cell + pad)
             val top = rect.top + pad + row * (cell + pad)
             canvas.drawBitmap(sw, null, RectF(left, top, left + cell, top + cell), iconPaint)
