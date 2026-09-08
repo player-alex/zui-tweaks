@@ -80,7 +80,14 @@ object Control {
                 object : XC_MethodHook() {
                     override fun afterHookedMethod(param: MethodHookParam) {
                         Logx.guard("control attach") {
-                            (param.thisObject as? Context)?.let { attachContext(it) }
+                            val ctx = param.thisObject as? Context ?: return@guard
+                            attachContext(ctx)
+                            // Second chance for the file log: this is the first point in the
+                            // process where a Context exists, which is what the fallback path
+                            // (an app's own external files dir) needs.
+                            if (Flags.readConfig(ctx).bool("debugLog", false)) {
+                                DebugLog.open(ctx, ctx.packageName.substringAfterLast('.'))
+                            }
                         }
                     }
                 },

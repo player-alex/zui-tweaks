@@ -41,6 +41,10 @@ class HookEntry : XposedModule() {
                 return
             }
             val config = Flags.readConfig()
+            // Before the first hook line, so the file holds the whole of this process's life.
+            // No Context here; DebugLog retries from Application.onCreate for the processes
+            // that cannot write to /sdcard directly.
+            if (config.bool("debugLog", false)) DebugLog.open(null, pkg.substringAfterLast('.'))
             // Which config channels this process can see. There is no Context yet, so
             // Settings.Global is reported as no-context here; the IME path re-reports it
             // from onCreate. Read this line before believing a setting had no effect.
@@ -93,7 +97,12 @@ class HookEntry : XposedModule() {
                     config.int("folderDragSlop", 30),
                     config.int("groupZonePct", 36),
                 )
-                if (folderUi) DrawerFolderRender.install(classLoader, config.bool("folderIconProbe", false), config.bool("drawerOrder", true))
+                if (folderUi) DrawerFolderRender.install(
+                    classLoader,
+                    config.bool("folderIconProbe", false),
+                    config.bool("drawerOrder", true),
+                    config.int("folderPreviewGrid", 2),
+                )
             }
         } catch (t: Throwable) {
             Logx.e("onPackageLoaded failed", t)
