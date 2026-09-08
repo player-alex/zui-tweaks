@@ -62,6 +62,8 @@
 
     <string name="set_drawermovable_title">Drawer grouping</string>
     <string name="set_drawermovable_summary">Long-press an app in the drawer to move it instead of opening the menu.</string>
+    <string name="set_folderpreviewgrid_title">Folder preview grid</string>
+    <string name="set_folderpreviewgrid_summary">Icons along one side of a drawer folder’s preview: 2 gives 2x2, 3 gives 3x3, 4 gives 4x4. This preview is drawn by this module, unlike a home-screen folder’s, which the launcher draws at its own size — which is why the two never matched.</string>
     <string name="set_folderui_title">Drawer folders</string>
     <string name="set_folderui_summary">Drop one app onto another to make a folder. Needs drawer grouping.</string>
     <string name="set_drawerorder_title">Custom drawer order</string>
@@ -78,6 +80,8 @@
     <string name="set_secondaryhomeguard_summary">Restore the tablet home if the external display home lands on it.</string>
     <string name="set_virtualcursor_title">Virtual cursor tracking</string>
     <string name="set_virtualcursor_summary">Let the virtual touchpad cursor reveal the taskbar at the bottom edge.</string>
+    <string name="set_debuglog_title">Debug log to a file</string>
+    <string name="set_debuglog_summary">Writes what the hooks log to /sdcard/zuitweaks/, one file per process, replaced each time that process starts. logcat is a ring buffer and loses the hook-install lines within minutes, which is usually before anyone thinks to look. Off unless you are filing a bug report.</string>
     <string name="set_control_title">Diagnostic broadcast</string>
     <string name="set_control_summary">Let Reload on this screen reach the launcher. Turn it off to close the channel.</string>
 

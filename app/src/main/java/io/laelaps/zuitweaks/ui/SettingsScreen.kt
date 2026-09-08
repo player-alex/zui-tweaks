@@ -231,8 +231,15 @@ fun SettingsScreen(store: SettingsStore, onOpenAppSelection: () -> Unit = {}) {
             ),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            // Every item carries a stable key AND a contentType. Without them this list crashed in
+            // Compose's prefetch: "Cannot disable reuse from root if it was caused by other groups",
+            // thrown from PausedCompositionImpl.resume while the lazy layout was pre-composing an
+            // item off-screen. Five items had no key at all, and nothing declared a contentType, so
+            // a notice card, a section header, a module card and a setting row all shared one reuse
+            // pool and were reused into each other's slots. Keys give the items identity across
+            // recomposition; contentType keeps unlike composables out of each other's pool.
 
-            item {
+            item(key = "status", contentType = "notice") {
                 if (killed) {
                     NoticeCard(
                         title = stringResource(R.string.status_killswitch_title),
@@ -269,7 +276,7 @@ fun SettingsScreen(store: SettingsStore, onOpenAppSelection: () -> Unit = {}) {
             // the card had vanished for no reason. It stays, and reports which way it is set.
             sidebarStatus?.takeIf { it.state != FreeformSidebar.State.NO_ROOT }?.let { sb ->
                 val ours = sb.suppressedByUs
-                item(key = "sidebar") {
+                item(key = "sidebar", contentType = "notice") {
                     val tone = if (ours) Tone.WARN else Tone.INFO
                     val (container, onContainer) = toneColors(tone)
                     NoticeCard(
@@ -323,7 +330,7 @@ fun SettingsScreen(store: SettingsStore, onOpenAppSelection: () -> Unit = {}) {
             // their settings belong to - Keyboard and Misc - which left two prerequisites at
             // opposite ends of a long scroll, and setting the device up is one job. The
             // external-display *fix* stays in Misc: that card is the app picker, not an install.
-            item(key = "modules-h") {
+            item(key = "modules-h", contentType = "header") {
                 Text(
                     text = stringResource(R.string.section_modules),
                     style = MaterialTheme.typography.titleSmall,
@@ -331,8 +338,8 @@ fun SettingsScreen(store: SettingsStore, onOpenAppSelection: () -> Unit = {}) {
                     modifier = Modifier.padding(top = 16.dp, bottom = 4.dp, start = 4.dp),
                 )
             }
-            item(key = "keymod") { keyboardCard() }
-            item(key = "extmod") {
+            item(key = "keymod", contentType = "module") { keyboardCard() }
+            item(key = "extmod", contentType = "module") {
                 ExtDensityModuleCard(
                     status = extModStatus,
                     busy = runningFor == ActionOwner.ExtDensity,
@@ -344,7 +351,7 @@ fun SettingsScreen(store: SettingsStore, onOpenAppSelection: () -> Unit = {}) {
             }
 
             if (overrides.isNotEmpty()) {
-                item {
+                item(key = "overrides", contentType = "notice") {
                     NoticeCard(
                         title = stringResource(R.string.status_override_title),
                         body = stringResource(R.string.status_override_body),
@@ -356,7 +363,7 @@ fun SettingsScreen(store: SettingsStore, onOpenAppSelection: () -> Unit = {}) {
             }
 
             if (pending.isNotEmpty()) {
-                item {
+                item(key = "pending", contentType = "notice") {
                     NoticeCard(
                         title = stringResource(R.string.restart_title),
                         body = stringResource(R.string.restart_body),
@@ -402,7 +409,7 @@ fun SettingsScreen(store: SettingsStore, onOpenAppSelection: () -> Unit = {}) {
 
             Schema.byGroup.forEach { (group, settings) ->
                 if (settings.isEmpty()) return@forEach
-                item(key = "h-${group.name}") {
+                item(key = "h-${group.name}", contentType = "header") {
                     Text(
                         text = stringResource(Labels.of(group)),
                         style = MaterialTheme.typography.titleSmall,
@@ -410,8 +417,8 @@ fun SettingsScreen(store: SettingsStore, onOpenAppSelection: () -> Unit = {}) {
                         modifier = Modifier.padding(top = 16.dp, bottom = 4.dp, start = 4.dp),
                     )
                 }
-                if (group == Group.MISC) item(key = "misc-extfix") { ExtFixCard(onOpenAppSelection) }
-                items(settings, key = { it.key }) { setting ->
+                if (group == Group.MISC) item(key = "misc-extfix", contentType = "extfix") { ExtFixCard(onOpenAppSelection) }
+                items(settings, key = { it.key }, contentType = { "setting" }) { setting ->
                     SettingCard(
                         setting = setting,
                         store = store,
@@ -424,7 +431,7 @@ fun SettingsScreen(store: SettingsStore, onOpenAppSelection: () -> Unit = {}) {
             }
 
 
-            item {
+            item(key = "impex", contentType = "impex") {
                 Spacer(Modifier.height(16.dp))
                 ImportExportCard(
                     store = store,
@@ -438,7 +445,7 @@ fun SettingsScreen(store: SettingsStore, onOpenAppSelection: () -> Unit = {}) {
                 )
             }
 
-            item {
+            item(key = "actions", contentType = "actions") {
                 Spacer(Modifier.height(16.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -728,7 +735,11 @@ private fun SettingCard(
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "$live${stringResource(labels.unitRes)}",
+                        // unitRes defaults to 0, and stringResource(0) throws
+                        // Resources$NotFoundException. A unit-less number is a perfectly
+                        // ordinary setting, so treat 0 as "no unit" instead of making every
+                        // future NumberSetting remember to declare one.
+                        text = "$live" + if (labels.unitRes != 0) stringResource(labels.unitRes) else "",
                         style = MaterialTheme.typography.titleMedium,
                         fontFamily = FontFamily.Monospace,
                         modifier = Modifier.width(72.dp),

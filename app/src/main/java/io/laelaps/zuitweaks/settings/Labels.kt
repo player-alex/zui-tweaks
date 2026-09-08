@@ -62,6 +62,7 @@ object Labels {
         ),
         "drawerMovable" to Text(R.string.set_drawermovable_title, R.string.set_drawermovable_summary),
         "folderUi" to Text(R.string.set_folderui_title, R.string.set_folderui_summary),
+        "folderPreviewGrid" to Text(R.string.set_folderpreviewgrid_title, R.string.set_folderpreviewgrid_summary),
         "drawerOrder" to Text(R.string.set_drawerorder_title, R.string.set_drawerorder_summary),
 
         "drawerDragSlop" to Text(
@@ -79,6 +80,7 @@ object Labels {
         ),
         "virtualCursor" to Text(R.string.set_virtualcursor_title, R.string.set_virtualcursor_summary),
         "control" to Text(R.string.set_control_title, R.string.set_control_summary),
+        "debugLog" to Text(R.string.set_debuglog_title, R.string.set_debuglog_summary),
     )
 
     /** Keys present here, for the completeness test. */

@@ -55,6 +55,8 @@
 
     <string name="set_drawermovable_title">앱 목록 묶기</string>
     <string name="set_drawermovable_summary">앱 목록에서 아이콘을 길게 누르면 메뉴 대신 이동 모드가 됩니다.</string>
+    <string name="set_folderpreviewgrid_title">폴더 미리보기 격자</string>
+    <string name="set_folderpreviewgrid_summary">드로어 폴더 미리보기의 한 변에 들어갈 아이콘 수입니다. 2면 2x2, 3이면 3x3, 4면 4x4. 이 미리보기는 이 모듈이 직접 그립니다. 바탕화면 폴더는 런처가 자기 크기로 그리기 때문에 둘이 달라 보였던 것입니다.</string>
     <string name="set_folderui_title">앱 목록 폴더</string>
     <string name="set_folderui_summary">앱을 다른 앱 위에 놓으면 폴더가 됩니다. 앱 목록 묶기가 필요합니다.</string>
     <string name="set_drawerorder_title">사용자 지정 정렬</string>
@@ -71,6 +73,8 @@
     <string name="set_secondaryhomeguard_summary">외부 디스플레이의 홈이 태블릿 화면을 차지하면 원래 홈으로 되돌립니다.</string>
     <string name="set_virtualcursor_title">가상 커서 추적</string>
     <string name="set_virtualcursor_summary">가상 터치패드 커서가 화면 아래 끝에서 작업 표시줄을 다시 불러옵니다.</string>
+    <string name="set_debuglog_title">디버그 로그를 파일로 기록</string>
+    <string name="set_debuglog_summary">훅이 남기는 로그를 /sdcard/zuitweaks/ 에 프로세스별 파일로 기록하고, 해당 프로세스가 시작될 때마다 새로 씁니다. logcat은 링 버퍼라 훅 설치 로그가 몇 분이면 밀려나는데, 보통 그 전에 확인하지 못합니다. 버그 리포트를 보낼 때만 켜세요.</string>
     <string name="set_control_title">진단 브로드캐스트</string>
     <string name="set_control_summary">이 화면의 다시 불러오기가 런처에 닿게 합니다. 끄면 통로가 닫힙니다.</string>
 
