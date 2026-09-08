@@ -153,10 +153,14 @@ object DrawerFolderOverlay {
             // re-centring AFTER animateOpen is too late (the animator already captured the corner).
             // So hook j0()'s return — which runs before the animator is built — and overwrite x/y +
             // pivot to screen-centre. Identity-gated to our folder; native folders are untouched.
-            val n = runCatching {
-                XposedBridge.hookAllMethods(folderCls, "j0", object : XC_MethodHook() {
+            // R8 shifted these single-letter names by one between 18.1.0 and 18.2.0: the positioner
+            // is i0() on 18.1.0 and j0() on 18.2.0 (there, i0 is something else entirely). Hook both
+            // names on every build - the body is identity-gated to our own folder and only writes
+            // layout params, so landing on the wrong method is a no-op rather than a hazard.
+            val n = listOf("i0", "j0").sumOf { name -> runCatching {
+                XposedBridge.hookAllMethods(folderCls, name, object : XC_MethodHook() {
                     override fun afterHookedMethod(param: MethodHookParam) {
-                        Logx.guard("Folder.j0:centre") {
+                        Logx.guard("Folder positioner:centre") {
                             val folder = param.thisObject as? View ?: return@guard
                             if (folder !== pendingCenterFolder) return@guard
                             val dl = pendingDragLayer ?: return@guard
@@ -171,12 +175,12 @@ object DrawerFolderOverlay {
                             folder.pivotX = lpW / 2f
                             folder.pivotY = lpH / 2f
                             pendingCenterFolder = null
-                            Logx.i("Folder.j0: re-centred to ${(dl.width - lpW) / 2},${(dl.height - lpH) / 2} (lp ${lpW}x$lpH dl ${dl.width}x${dl.height})")
+                            Logx.i("Folder positioner: re-centred to ${(dl.width - lpW) / 2},${(dl.height - lpH) / 2} (lp ${lpW}x$lpH dl ${dl.width}x${dl.height})")
                         }
                     }
                 }).size
-            }.getOrDefault(0)
-            Logx.i("drawer folder overlay: j0 positioner hook installed ($n method(s))")
+            }.getOrDefault(0) }
+            Logx.i("drawer folder overlay: positioner hook installed on i0+j0 ($n method(s))")
 
             // Suppress the native open reveal for OUR folder only: Folder implements ClipPathView and
             // a ShapeDelegate animates setClipPath(Path) each frame to grow the body. No-op it while
@@ -398,6 +402,7 @@ object DrawerFolderOverlay {
                     // snapping the clip back to a partial rounded rect — that straddle was the "2-stage".
                     // With the folder j0-centred from the first frame and a small centred anchor, the
                     // native reveal alone opens cleanly.
+                    logGridGeometry(viewCtx, folder)
                     // Remove the anchor icon now, whether or not animateOpen succeeded (the folder.post
                     // below can be unreliable if the open animator failed). removeView is idempotent.
                     runCatching { (folderIcon.parent as? ViewGroup)?.removeView(folderIcon) }
@@ -438,14 +443,70 @@ object DrawerFolderOverlay {
         val drawable = (v0 as? ImageView)?.drawable
         Logx.i("blur: v0=${v0.javaClass.simpleName} size=${v0.width}x${v0.height} drawable=${drawable?.javaClass?.simpleName}")
         // Remove the rounded folder-icon-shaped clips so the blur covers the whole backdrop.
+        // Still needed: 18.1.0's clip consumer additionally clipRect()s to the animated folder
+        // rect, which 18.2.0 dropped.
         runCatching { v0.clipToOutline = false }
         runCatching {
             v0.javaClass.methods.firstOrNull { it.name == "setClipConsumer" && it.parameterCount == 1 }?.invoke(v0, null)
         }
+        // ...and the part that actually mattered on 18.1.0. The launcher screenshots itself into
+        // this view and then setPadding()s the view down to exactly the captured rect. On 18.2.0
+        // that rect is first clamped to the whole DragLayer, so the padding comes out <= 0 and the
+        // backdrop is genuinely full-screen. 18.1.0 has no such clamp: the rect is the tight union
+        // of the folder-icon rect and the folder body, so the padding is large and positive and the
+        // screenshot draws inside a small box anchored on the ICON - which is why the patch sat off
+        // to one side, and why the side changed with whichever folder was opened. Unclipping cannot
+        // help with that; only the padding can. FIT_XY then spreads 18.1.0's partial capture over
+        // the whole view, which a 70px blur makes indistinguishable from a full-screen one.
+        fun unpad(where: String) = runCatching {
+            if (v0.paddingLeft != 0 || v0.paddingTop != 0 || v0.paddingRight != 0 || v0.paddingBottom != 0) {
+                Logx.i("blur: backdrop padding $where was " +
+                    "(${v0.paddingLeft},${v0.paddingTop},${v0.paddingRight},${v0.paddingBottom}) -> 0")
+                v0.setPadding(0, 0, 0, 0)
+            }
+        }
+        runCatching { (v0 as? ImageView)?.scaleType = ImageView.ScaleType.FIT_XY }
+        unpad("at open")
+        // The big-folder/taskbar path calls setPadding on this view again after this frame.
+        runCatching { v0.post { Logx.guard("blur: repad") { unpad("next frame") } } }
         runCatching {
             v0.setRenderEffect(RenderEffect.createBlurEffect(70f, 70f, Shader.TileMode.DECAL))
             Logx.i("blur: setRenderEffect(70) applied")
         }.onFailure { Logx.e("blur: setRenderEffect failed", it) }
+    }
+
+    /**
+     * Log what the opened folder's grid actually resolved to.
+     *
+     * A report said the drawer folder shows a 2x2 grid where a workspace folder shows 4x4. A dex
+     * survey of this build found 4x4 to be the only value configured for a device this size - the
+     * smallest grid declared anywhere is 3x3, and nothing declares 2 columns - and only one
+     * InvariantDeviceProfile exists per process, so no context can legitimately produce 2x2. That
+     * leaves two candidates, which look alike from a photograph and cannot be told apart by
+     * reasoning: the OPENED folder's FolderPagedView grid, or the folder ICON's preview, whose
+     * ClippedFolderIconLayoutRule shows 4 items in a 2x2 arrangement until init() raises it to 16.
+     * So measure both rather than guess which one the report meant.
+     */
+    private fun logGridGeometry(viewCtx: Context, folder: Any) {
+        Logx.guard("folder grid probe") {
+            val dp = runCatching { XposedHelpers.callMethod(viewCtx, "getDeviceProfile") }.getOrNull()
+            val cols = dp?.let { runCatching { XposedHelpers.getIntField(it, "numFolderColumns") }.getOrNull() }
+            val rows = dp?.let { runCatching { XposedHelpers.getIntField(it, "numFolderRows") }.getOrNull() }
+            Logx.i("folder grid: ctx=${viewCtx.javaClass.simpleName} deviceProfile=${dp?.javaClass?.simpleName} " +
+                "numFolderColumns=$cols numFolderRows=$rows")
+            // The paged content's own counts, i.e. what is actually laid out.
+            val content = runCatching { XposedHelpers.getObjectField(folder, "mContent") }.getOrNull()
+            if (content != null) {
+                val counts = content.javaClass.declaredFields
+                    .filter { it.type == Integer.TYPE }
+                    .mapNotNull { f ->
+                        runCatching { f.isAccessible = true; "${f.name}=${f.getInt(content)}" }.getOrNull()
+                    }
+                Logx.i("folder grid: ${content.javaClass.simpleName} ints[${counts.joinToString()}]")
+            } else {
+                Logx.i("folder grid: mContent not reachable on ${folder.javaClass.simpleName}")
+            }
+        }
     }
 
     /** Hide the drop-target bar left visible at the top by our suppressed drag-end. */
