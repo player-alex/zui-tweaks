@@ -142,7 +142,19 @@ It captures the two values before clearing them and restores what it captured, r
 writing back a hardcoded `1` - a user who had the sidebar off already gets it left off. Revoking
 the app op would not work: `com.zui.freeform.sidebar` runs as the system UID, where
 `appops set SYSTEM_ALERT_WINDOW ignore` is ignored, so the `Settings.System` keys are what
-actually stop it. From a PC the equivalent is:
+actually stop it.
+
+**Reporting the state is a different question from changing it, and the settings cannot answer it.**
+ZUI writes `enable_temp_zuifreeformbar` back to `1` shortly after it is cleared: measured on the
+device, one successful press left the two keys reading `0` and `1` while the window manager showed
+the sidebar owning no window at all. Reading that key back therefore claimed "still on" about a
+sidebar that was already gone - the card redrew as *Turn off*, the press looked like it had done
+nothing, and the obvious response was to press it again. So the card asks the window manager
+whether the package currently owns a window, and falls back to the *persistent* key for the case
+where the sidebar is enabled but has not drawn yet. The transient key is still written and
+restored, because that is part of making the overlay go away; it is just never believed.
+
+From a PC the equivalent is:
 
 ```sh
 adb shell su -c 'settings put system enable_zuifreeformbar 0'

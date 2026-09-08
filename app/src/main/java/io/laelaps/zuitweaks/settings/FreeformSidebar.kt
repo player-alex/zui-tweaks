@@ -21,6 +21,14 @@ import android.content.Context
  * from a hardcoded `1`: leaving the user's sidebar permanently off - or switching it *on* for
  * someone who had it off already - would be this app breaking something it was asked to
  * un-break for a moment.
+ *
+ * **Reporting is not the same question as acting.** Writing the keys plus a force-stop does remove
+ * the overlay, but ZUI puts `enable_temp_zuifreeformbar` straight back to `1` afterwards - measured
+ * on the device: one successful suppress left the keys reading `0` and `1` while the window manager
+ * showed the sidebar owning no window at all. Believing that key made the card report "still on"
+ * about a sidebar that was already gone, so the button looked like it had done nothing and invited
+ * a second press. [status] therefore asks what is on screen; the transient key is written and
+ * restored, because that is part of making it go away, but it is never read back.
  */
 object FreeformSidebar {
 
@@ -45,18 +53,26 @@ object FreeformSidebar {
 
     /** Blocking. Call it off the main thread. */
     fun status(context: Context): Status {
-        val script = KEYS.joinToString("\n") { "echo $it=$(settings get system $it)" }
+        val script = """
+            echo persistent=${'$'}(settings get system ${KEYS[0]})
+            echo windows=${'$'}(dumpsys window windows | grep -c $PKG)
+        """.trimIndent()
         val result = Root.exec(script, timeoutSeconds = 20)
         if (!result.ok) return Status(State.NO_ROOT, false)
 
-        // "null" is what `settings get` prints for a key that was never written. Treat it as on:
-        // the sidebar ships enabled, and claiming "already off" when it is not would send the
-        // user to a dialog that still cannot be tapped.
-        val on = KEYS.any { key ->
-            val v = result.output.lineSequence()
-                .firstOrNull { it.startsWith("$key=") }?.substringAfter('=')?.trim()
-            v == null || v == "null" || v == "1"
-        }
+        fun field(name: String) = result.output.lineSequence()
+            .firstOrNull { it.startsWith("$name=") }?.substringAfter('=')?.trim()
+
+        // What is on screen right now is the question that matters - a window is what blocks the
+        // dialog. Measured on the device: after one successful suppress the keys read 0 and 1
+        // while the sidebar owned no window at all, because ZUI writes the transient key back.
+        val hasWindow = (field("windows")?.toIntOrNull() ?: 0) > 0
+        // The persistent key catches "enabled but has not drawn yet". "null" is what settings
+        // get prints for a key never written, and the sidebar ships enabled, so an absent value
+        // counts as on - claiming "already off" would send the user to a dialog that still
+        // cannot be tapped. enable_temp_zuifreeformbar is deliberately not consulted.
+        val persistent = field("persistent")
+        val on = hasWindow || persistent == null || persistent == "null" || persistent == "1"
         return Status(if (on) State.ON else State.OFF, captured(context) != null)
     }
 
