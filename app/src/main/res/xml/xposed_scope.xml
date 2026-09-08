@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The external-display bottom bar (window "Taskbar_dp") is owned by the ZUI
+         launcher, not by SystemUI. See RECON.md section 3. -->
+    <item>com.zui.launcher</item>
+    <!-- ZUI's virtual touchpad draws its own cursor sprite; its position is only
+         observable from inside that process. See RECON.md section 4/O. -->
+    <item>com.zui.wifip2p</item>
+    <!-- IME, for the physical-keyboard language-switch input loss. Any scoped package
+         with an InputMethodService gets the probe; Gboard is the one installed here. -->
+    <item>com.google.android.inputmethod.latin</item>
+    <!-- The external-display tablet fix is NOT an LSPosed hook any more. It is the standalone
+         Zygisk module (zygisk-extdensity), and its target apps are chosen in this app's App
+         Selection screen - not here. So no system_server / per-app density scope belongs in this
+         file; that avoids double-hooking a process from both LSPosed and Zygisk. -->
+</resources>

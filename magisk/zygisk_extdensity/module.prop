@@ -1,0 +1,6 @@
+id=zygisk_extdensity
+name=ZUI Tweaks
+version=v5e-qa
+versionCode=6
+author=laelaps
+description=Zygisk module controlled by ZUI Tweaks. Corrects getRealMetrics density on the external monitor so SELECTED apps use the tablet layout. App selection via an allowlist (no LSPosed, no reboot to change).

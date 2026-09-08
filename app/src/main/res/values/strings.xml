@@ -1,0 +1,166 @@
+<resources>
+    <string name="app_name">ZUI Tweaks</string>
+
+    <!--
+      House style for this file, after a round of "too wordy, and pitched at nobody":
+      a title is two or three words, a summary is one line saying what changes on screen.
+      No class names, no pixel measurements, no reasoning. That material is real and worth
+      keeping - it lives in README.md and RECON.md, where there is room for it. A phone
+      screen that explains bilinear minification while the reader is looking for the
+      on switch serves neither the person who wrote it nor anyone else.
+    -->
+
+    <!-- sections -->
+    <string name="group_taskbar">Taskbar</string>
+    <string name="group_icons">Taskbar icons</string>
+    <string name="group_keyboard">Keyboard</string>
+    <string name="group_launcher">Launcher</string>
+    <string name="group_tuning">Tuning</string>
+
+    <!-- hooked processes, named because a change only lands when one restarts -->
+    <string name="proc_launcher">Launcher</string>
+    <string name="proc_touchpad">Touchpad</string>
+    <string name="proc_ime">Keyboard app</string>
+
+    <string name="unit_px">px</string>
+    <string name="unit_ms">ms</string>
+    <string name="unit_percent" formatted="false">%</string>
+
+    <!-- taskbar -->
+    <string name="set_autohide_title">Auto-hide</string>
+    <string name="set_autohide_summary">Hide the bar on the external display. The bottom edge brings it back.</string>
+    <string name="set_stripinsets_title">Reclaim the space</string>
+    <string name="set_stripinsets_summary">Give apps the height the hidden bar still reserves.</string>
+    <string name="set_taptoreveal_title">Tap to reveal</string>
+    <string name="set_taptoreveal_summary">A tap on the hidden strip brings the bar back.</string>
+    <string name="set_transient_title">Floating taskbar</string>
+    <string name="set_transient_summary">Use the AOSP pill instead of the full-width bar. Looks different.</string>
+
+    <!-- icons -->
+    <string name="set_iconfix_title">Sharpen icons</string>
+    <string name="set_iconfix_summary">Draw icons at the size they are shown, instead of shrinking them.</string>
+    <string name="set_iconheadroom_title">Pre-scale target</string>
+    <string name="set_iconheadroom_summary">How much of the icon slot to draw into. 115 matches the real size.</string>
+
+    <!-- keyboard -->
+    <string name="set_altfix_title">Right-Alt workaround</string>
+    <string name="set_altfix_summary">Temporarily restores input that right Alt would otherwise ignore.</string>
+    <string name="set_altdefer_title">Queue keystrokes</string>
+    <string name="set_altdefer_summary">Queue a keystroke until the switch lands, so it arrives in the new language.</string>
+    <string name="set_altdefertimeout_title">Queue deadline</string>
+    <string name="set_altdefertimeout_summary">Drain the queue anyway if no switch arrives.</string>
+
+    <!-- tuning -->
+    <string name="set_collapsedpx_title">Hidden height</string>
+    <string name="set_collapsedpx_summary">How tall the taskbar stays while hidden. Nothing shows on screen up to 12.</string>
+    <string name="set_collapsedelay_title">Taskbar hide delay</string>
+    <string name="set_collapsedelay_summary">How long after the cursor leaves before the taskbar hides.</string>
+    <string name="set_cursorhotzone_title">Virtual cursor reveal zone</string>
+    <string name="set_cursorhotzone_summary">How close to the bottom edge the virtual touchpad cursor brings the taskbar back.</string>
+    <string name="set_cursorkeepopen_title">Virtual cursor keep-open range</string>
+    <string name="set_cursorkeepopen_summary">How far the virtual touchpad cursor must leave the taskbar before it hides again.</string>
+
+    <string name="set_drawermovable_title">Drawer grouping</string>
+    <string name="set_drawermovable_summary">Long-press an app in the drawer to move it instead of opening the menu.</string>
+    <string name="set_folderui_title">Drawer folders</string>
+    <string name="set_folderui_summary">Drop one app onto another to make a folder. Needs drawer grouping.</string>
+    <string name="set_drawerorder_title">Custom drawer order</string>
+    <string name="set_drawerorder_summary">Keep the order you arrange, instead of alphabetical. Hides the A-Z scroller.</string>
+
+    <string name="set_drawerdragslop_title">App drawer reorder distance threshold</string>
+    <string name="set_drawerdragslop_summary">How far you must move an app in the app drawer before it swaps position when reordering.</string>
+    <string name="set_folderdragslop_title">In-folder reorder distance threshold</string>
+    <string name="set_folderdragslop_summary">How far you must move an app inside a folder before it swaps position when reordering.</string>
+    <string name="set_groupzonepct_title">Position-swap gap threshold</string>
+    <string name="set_groupzonepct_summary">Threshold for the target area used when swapping positions. Larger makes it easier to form a folder; smaller makes it easier to insert between apps.</string>
+
+    <string name="set_secondaryhomeguard_title">Home guard</string>
+    <string name="set_secondaryhomeguard_summary">Restore the tablet home if the external display home lands on it.</string>
+    <string name="set_virtualcursor_title">Virtual cursor tracking</string>
+    <string name="set_virtualcursor_summary">Let the virtual touchpad cursor reveal the taskbar at the bottom edge.</string>
+    <string name="set_control_title">Diagnostic broadcast</string>
+    <string name="set_control_summary">Let Reload on this screen reach the launcher. Turn it off to close the channel.</string>
+
+    <!-- screen chrome -->
+    <string name="status_active_title">Active</string>
+    <string name="status_active_body">Settings on this screen reach the hooked processes.</string>
+    <string name="status_inactive_title">Not active</string>
+    <string name="status_inactive_body">LSPosed is not passing these settings on. Enable the module, add all three packages to its scope, then reopen this app.</string>
+    <string name="status_killswitch_title">Kill switch on</string>
+    <string name="status_killswitch_body">/sdcard/zuitweaks.off exists, so no hooks run at all. Delete it to re-enable.</string>
+    <string name="status_override_title">Diagnostics active</string>
+    <string name="status_override_body">Diagnostics set outside the app. They have no toggle here; the settings above are unaffected.</string>
+
+    <string name="badge_restart">Needs restart</string>
+    <string name="badge_default">Default</string>
+
+    <string name="restart_title">Restart to apply</string>
+    <string name="restart_body">A hook loads only when a process starts.</string>
+
+    <!-- Magisk key-layout module -->
+    <string name="keymod_title">Keyboard fix</string>
+    <string name="keymod_checking">Checking…</string>
+    <string name="keymod_noroot">Root was refused. Everything on this card needs it, including reading whether the module is really in effect.</string>
+    <string name="keymod_nomagisk">No Magisk, so there is nowhere to install it. Only the workaround below is available.</string>
+    <string name="keymod_notinstalled">Not installed. Right Alt still swallows the key typed after it.</string>
+    <string name="keymod_pending">Installed. Reboot to apply.</string>
+    <string name="keymod_notloaded">Installed but not mounted. Magisk skipped it at this boot, so nothing has changed yet.</string>
+    <string name="keymod_incomplete">Mounted, but a layout still treats right Alt as a modifier.</string>
+    <string name="keymod_active">Right Alt is set to switch language, not act as a modifier.</string>
+    <string name="keymod_detail">%1$d layouts patched, %2$d left · Magisk %3$s</string>
+    <string name="keymod_markers">Flags left in the module folder: %1$s</string>
+
+    <!-- actions -->
+    <string name="action_install">Install</string>
+    <string name="action_reinstall">Install again</string>
+    <string name="confirm_reboot_title">Reboot now?</string>
+    <string name="confirm_reboot_body">The tablet restarts immediately. Anything unsaved in other apps is lost.</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_reboot">Reboot</string>
+    <string name="action_retry">Retry</string>
+    <string name="action_clear_markers">Clear flags</string>
+    <string name="action_restart_now">Restart now</string>
+    <string name="action_reload">Reload</string>
+    <string name="action_reset">Reset all</string>
+    <string name="action_copy">Copy</string>
+    <string name="copied">Copied</string>
+    <string name="reload_sent">Reload sent</string>
+
+    <!-- misc section + external-display tablet fix (standalone Zygisk module, app-selected) -->
+    <string name="group_misc">Misc</string>
+    <string name="set_touchpadportrait_title">Virtual touchpad portrait</string>
+    <string name="set_touchpadportrait_summary">Let the virtual touchpad rotate to portrait, via a patch.</string>
+    <string name="extfix_title">External display layout fix</string>
+    <string name="extfix_summary">Fixes the bug so apps switch to tablet mode correctly on the external display.</string>
+    <string name="extfix_select">Select apps</string>
+
+    <!-- external-display fix Zygisk module (in-app install, like the keyboard module) -->
+    <string name="extmod_title">External display fix module</string>
+    <string name="extmod_checking">Checking…</string>
+    <string name="extmod_noroot">Root was refused. Installing and checking this module needs it.</string>
+    <string name="extmod_nomagisk">No Magisk, so there is nowhere to install it.</string>
+    <string name="extmod_notinstalled">Not installed. Install it, then reboot once to activate.</string>
+    <string name="extmod_pending">Installed. Reboot once to activate.</string>
+    <string name="extmod_disabled">Disabled in Magisk. Enable it, then reboot.</string>
+    <string name="extmod_active">The fix is installed. Pick apps below.</string>
+    <string name="action_enable">Enable</string>
+
+    <!-- app selection screen -->
+    <string name="appsel_title">Target apps</string>
+    <string name="appsel_hint">Only checked apps use the tablet layout on the external monitor. Restart an app after changing it.</string>
+    <string name="appsel_search">Search</string>
+    <string name="appsel_restart_title">Restart needed</string>
+    <string name="appsel_restart_body">Settings changed. An app restart is required to apply.</string>
+    <string name="appsel_restart_action">Restart</string>
+    <string name="appsel_root_failed">Couldn\'t apply — root was refused.</string>
+    <string name="section_modules">Modules</string>
+    <string name="action_export">Export</string>
+    <string name="action_import">Import</string>
+    <string name="export_title">Settings file</string>
+    <string name="export_body">Save these settings to a file, or load them from one. Nothing on this screen is read from a file at runtime.</string>
+    <string name="import_done">Imported %1$d settings</string>
+    <string name="export_done_folders">Exported %1$d settings and %2$d folders</string>
+    <string name="export_done_nofolders">Exported %1$d settings. Folders were not included — the launcher did not answer. Open the app drawer once, then export again.</string>
+    <string name="import_done_folders">Imported %1$d settings and %2$d folders. Restart the launcher to see them.</string>
+    <string name="impex_failed">Could not read or write that file</string>
+</resources>

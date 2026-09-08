@@ -1,0 +1,6 @@
+id=hwkeyboard_langswitch
+name=Hardware keyboard: right-Alt as LANGUAGE_SWITCH
+version=v3
+versionCode=3
+author=laelaps
+description=Maps scancode 100 (right Alt) to LANGUAGE_SWITCH for every keyboard attached to this device. A keyboard with no dedicated 한/영 key has to use right Alt, and as a modifier it swallows the character typed after a language switch while its Alt+Shift chord cancels the switch. The patch is derived from this ROM at flash time - every layout that maps scancode 100 to ALT_RIGHT is copied with that one line changed, and nothing else is touched.

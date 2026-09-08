@@ -1,0 +1,76 @@
+# === Signing keys & secrets — NEVER commit ===
+# Release / upload / debug keystores, their credential sidecars, and anything else a
+# signed build needs. The release APK is signed with a key that lives only on the
+# build machine; nothing here may reach the published repo.
+*.jks
+*.keystore
+*.bks
+*.p12
+*.pfx
+*.pem
+*.der
+*.key
+*.keystore.properties
+debug.keystore
+release.keystore
+upload-keystore.jks
+keystore.properties
+signing.properties
+key.properties
+release-signing.properties
+release.properties
+secrets.properties
+google-services.json
+/keys/
+/keystore/
+/keystores/
+/signing/
+
+# === Build outputs & installables ===
+/build
+/app/release/
+/captures
+*.apk
+*.aab
+*.aar
+*.ap_
+*.apks
+*.dex
+*.idsig
+mapping.txt
+
+# === Gradle / Kotlin / native build state ===
+.gradle
+.kotlin
+.externalNativeBuild
+.cxx
+
+# === Local & device-specific config ===
+# SDK location, device push staging, per-machine settings.
+local.properties
+/.stage
+/.dev
+
+# === IDE (Android Studio / IntelliJ) ===
+*.iml
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+/.idea/deploymentTargetSelector.xml
+/.idea/deploymentTargetDropDown.xml
+/.idea/deviceStreaming.xml
+
+# === Development docs & internal working notes (kept local, not published) ===
+# README.md is the only published document. Everything else at the repo root is a
+# development artefact — session logs, plans, recon notes, investigation records and
+# agent work-order specs — and stays local. To publish another one, add a `!/name.md`
+# line below rather than deleting the rule.
+/*.md
+!/README.md
+
+# === OS junk ===
+.DS_Store
+Thumbs.db

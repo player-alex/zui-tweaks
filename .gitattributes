@@ -1,0 +1,24 @@
+# Everything text is stored and checked out with LF, on every platform.
+#
+# Not a style preference. This machine has core.autocrlf=true, and a CRLF checkout breaks two
+# things here in ways that are hard to read back from the failure:
+#
+#   magisk/**/customize.sh, update-binary   Magisk's shell reads a CRLF line as a command with a
+#                                           trailing CR. (The Gradle packer normalises these on
+#                                           the way into the zip as well - belt and braces,
+#                                           because the zip is not the only way they travel.)
+#   gradlew                                 a CRLF shebang line is not executable on Linux/macOS,
+#                                           so a clone cannot build.
+#   scripts/*.sh                            same, for anyone running the device helpers.
+*                text=auto eol=lf
+
+# Binary, so git neither diffs nor line-ends them.
+*.png            binary
+*.webp           binary
+*.jar            binary
+*.so             binary
+*.apk            binary
+*.aab            binary
+*.dex            binary
+*.keystore       binary
+*.jks            binary

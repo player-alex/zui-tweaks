@@ -1,0 +1,14 @@
+# Third-party sources, cloned by hand (see README "Build"). Not vendored: LSPlant alone is a
+# few thousand files, and pinning them here would mean re-vendoring on every upstream fix.
+# zygmod/src/main/cpp/zygisk.hpp is the exception - it IS committed, because the module has to
+# be pinned to one Zygisk API version and the header says which. See the note at its top.
+/deps/
+
+# make_dex.py intermediates. The generated hooker_dex.h IS committed, so a plain gradle build
+# needs neither python nor a JDK.
+/hooker_out/
+/hooker_dex/
+
+# Build outputs
+/build
+/zygmod/build
