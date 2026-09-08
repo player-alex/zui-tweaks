@@ -135,8 +135,16 @@ one-off helper, not something installed.
 
 **When to turn it off:** immediately before enabling this module in LSPosed, or before changing
 its scope. **When to turn it back on:** as soon as that step is done - the freeform sidebar does
-not work while it is off, so this is a two-minute detour, not a setting to leave flipped. The card
-stays on screen, in a warning tone, for as long as the app has it off, so it cannot be forgotten.
+not work while it is off, so this is a two-minute detour, not a setting to leave flipped. While the
+app has it off the card carries a warning tone, so it cannot be forgotten.
+
+The card is always present rather than appearing only when the sidebar looks active, because that
+state cannot predict when it is needed: the device this was written on sits at
+`enable_zuifreeformbar=0` with the sidebar drawing no window, and it still blocked the dialog.
+Hiding the card on that reading made it vanish for good after the first restore - the feature
+became unreachable, and a restore that had worked perfectly looked like the card disappearing for
+no reason. It reports three states instead: this app has it off, it is on screen now, or it is
+quiet but can still come back.
 
 It captures the two values before clearing them and restores what it captured, rather than
 writing back a hardcoded `1` - a user who had the sidebar off already gets it left off. Revoking

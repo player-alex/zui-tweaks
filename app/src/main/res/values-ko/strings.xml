@@ -148,6 +148,7 @@
     <string name="appsel_root_failed">루트 권한이 없어 적용하지 못했습니다.</string>
     <string name="sidebar_title">프리폼 사이드바 (LSPosed 다이얼로그 차단)</string>
     <string name="sidebar_body_on">LSPosed에서 이 모듈을 켜거나 scope를 바꾸기 직전에 끄세요. 오버레이 창이 떠 있으면 안드로이드가 그 다이얼로그에 탭을 전달하지 않습니다 — “앱이 인터페이스를 가리고 있어…”가 뜨고 아무 반응이 없습니다. 그 작업이 끝나면 바로 다시 켜세요. 꺼져 있는 동안에는 프리폼 사이드바 자체를 쓸 수 없습니다.</string>
+    <string name="sidebar_body_idle">지금은 화면에 떠 있지 않아 다이얼로그를 막지 않습니다. 다만 스스로 다시 뜰 수 있으니, LSPosed가 탭을 받지 않으면 눌러서 확실히 내리세요. 원래 값은 저장해 두었다가 되돌립니다.</string>
     <string name="sidebar_body_off">이 앱이 꺼둔 상태입니다. LSPosed 작업이 끝났으면 지금 다시 켜세요 — 켜기 전까지 ZUI 프리폼 사이드바가 동작하지 않습니다.</string>
     <string name="action_sidebar_off">끄기</string>
     <string name="action_sidebar_on">다시 켜기</string>
