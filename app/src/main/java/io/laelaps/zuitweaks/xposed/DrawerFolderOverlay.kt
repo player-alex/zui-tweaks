@@ -2,6 +2,7 @@ package io.laelaps.zuitweaks.xposed
 
 import android.content.ComponentName
 import android.content.Context
+import android.graphics.Rect
 import android.graphics.RenderEffect
 import android.graphics.Shader
 import android.os.Build
@@ -236,6 +237,12 @@ object DrawerFolderOverlay {
                         // Launcher.getWorkspace() → launcher crash (verified: NPE at getZuiFolderAnimator
                         // from a tap-outside close on the TaskbarOverlayDragLayer). Native workspace folders
                         // always have a real Launcher, so this is a no-op for them.
+                        // The close animator reads Workspace.getNewScaleFolder() again while it
+                        // builds its target rect, and over the drawer that is ~0.75 rather than 1.0.
+                        // Forcing it only around animateOpen left the close aiming at a rect scaled
+                        // differently from the one the open grew out of, so the folder converged
+                        // near - but not on - its icon. Armed here and disarmed in afterHooked below.
+                        if (folder === currentFolder) forceFolderScaleOne = true
                         if (hasRealLauncher(folder)) return@guard
                         val args = param.args ?: return@guard
                         if (args.isNotEmpty() && args[0] == true) {
@@ -246,6 +253,9 @@ object DrawerFolderOverlay {
                 }
 
                 override fun afterHookedMethod(param: MethodHookParam) {
+                    // The animator is fully built by now, so the forced 1.0 has done its job and must
+                    // not leak into a native workspace folder's own close.
+                    forceFolderScaleOne = false
                     Logx.guard("Folder.handleClose:cleanup") {
                         if (param.thisObject !== currentFolder) return@guard
                         // Safety net for the ghost folder: make sure our anchor icon is detached after
@@ -266,7 +276,14 @@ object DrawerFolderOverlay {
     }
 
     /** Open the real folder over the drawer for [apps] (each a launcher AppInfo). */
-    fun open(cl: ClassLoader, viewCtx: Context, apps: List<Any>, title: CharSequence, groupId: Long) {
+    fun open(
+        cl: ClassLoader,
+        viewCtx: Context,
+        apps: List<Any>,
+        title: CharSequence,
+        groupId: Long,
+        sourceIcon: View? = null,
+    ) {
         guardActive = true
         openItemCount = apps.size
         // bug3 diag: a folder tap that "does nothing" — confirm open() is even reached, and whether a
@@ -360,15 +377,36 @@ object DrawerFolderOverlay {
                 folderIcon.measuredWidth
             }.getOrNull()?.takeIf { it in 1..600 } ?: 200
             dragLayer.addView(folderIcon)
+            // Where this anchor sits IS where the folder animates from and back to. The close
+            // animator builds its target rect live, at close time, from mFolderIcon's left/top
+            // (dragLayer.getDescendantRectRelativeToSelf) - nothing is captured at open - and only
+            // the top-left is used; the size comes from the PreviewBackground. Removing the anchor
+            // after the open does not erase that: removeView leaves mLeft/mTop alone, so a detached
+            // icon still reports its last laid-out position. Parking it at the screen centre is
+            // therefore exactly why the folder used to shrink to the centre instead of to its icon.
+            //
+            // So put it on the real drawer icon. Open and close share one rect - the from/to pair is
+            // just swapped - so this makes the folder grow out of its icon and collapse back into
+            // it, while the positioner hook still lands the open folder itself in the centre.
             runCatching {
                 val lp = folderIcon.layoutParams
                 lp.width = iconSz
                 lp.height = iconSz
-                XposedHelpers.setObjectField(lp, "x", ((dragLayer.width - iconSz) / 2).coerceAtLeast(0))
-                XposedHelpers.setObjectField(lp, "y", ((dragLayer.height - iconSz) / 2).coerceAtLeast(0))
+                val at = sourceIcon?.let { rectInDragLayer(it, dragLayer) }
+                val x = at?.let { it.centerX() - iconSz / 2 } ?: ((dragLayer.width - iconSz) / 2)
+                val y = at?.let { it.centerY() - iconSz / 2 } ?: ((dragLayer.height - iconSz) / 2)
+                XposedHelpers.setObjectField(lp, "x", x.coerceIn(0, (dragLayer.width - iconSz).coerceAtLeast(0)))
+                XposedHelpers.setObjectField(lp, "y", y.coerceIn(0, (dragLayer.height - iconSz).coerceAtLeast(0)))
                 setCustomPosition(lp, true)
                 folderIcon.layoutParams = lp
-                Logx.i("drawer folder overlay: anchor icon sized ${iconSz}x$iconSz centred")
+                // Lay it out explicitly as well. The frame is what getDescendantRectRelativeToSelf
+                // reads, and the anchor is removed before the drag layer's next layout pass would
+                // otherwise have applied these params.
+                val spec = View.MeasureSpec.makeMeasureSpec(iconSz, View.MeasureSpec.EXACTLY)
+                folderIcon.measure(spec, spec)
+                folderIcon.layout(x, y, x + iconSz, y + iconSz)
+                Logx.i("drawer folder overlay: anchor ${iconSz}x$iconSz at $x,$y " +
+                    (if (at != null) "(on the drawer icon $at)" else "(centred - no source icon)"))
             }
             val folder = XposedHelpers.callMethod(folderIcon, "getFolder") as View
             currentFolder = folder
@@ -508,6 +546,16 @@ object DrawerFolderOverlay {
             }
         }
     }
+
+    /** [view]'s bounds expressed in [dragLayer]'s coordinates. */
+    private fun rectInDragLayer(view: View, dragLayer: ViewGroup): Rect? = runCatching {
+        val v = IntArray(2)
+        val d = IntArray(2)
+        view.getLocationOnScreen(v)
+        dragLayer.getLocationOnScreen(d)
+        if (view.width <= 0 || view.height <= 0) return null
+        Rect(v[0] - d[0], v[1] - d[1], v[0] - d[0] + view.width, v[1] - d[1] + view.height)
+    }.getOrNull()
 
     /** Hide the drop-target bar left visible at the top by our suppressed drag-end. */
     private fun hideDropTargetBar(dl: ViewGroup) {

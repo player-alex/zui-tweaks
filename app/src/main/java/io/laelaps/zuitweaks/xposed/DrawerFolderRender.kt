@@ -884,16 +884,17 @@ object DrawerFolderRender {
         if (comp.packageName != SENTINEL_PKG) return false
         val groupId = comp.className.removePrefix("g").toLongOrNull()
         if (groupId != null && view != null) {
-            openGroup(groupId, view.context)
+            openGroup(groupId, view.context, view)
             Logx.i("drawer folder render: folder click [$src] -> opening group $groupId")
         }
         return true
     }
 
-    private fun openGroup(groupId: Long, viewCtx: Context) = openGroupPlus(groupId, viewCtx, null)
+    private fun openGroup(groupId: Long, viewCtx: Context, sourceIcon: View? = null) =
+        openGroupPlus(groupId, viewCtx, null, sourceIcon)
 
     /** Open a group's overlay, optionally including an [extra] AppInfo just added to it. */
-    fun openGroupPlus(groupId: Long, viewCtx: Context, extra: Any?) {
+    fun openGroupPlus(groupId: Long, viewCtx: Context, extra: Any?, sourceIcon: View? = null) {
         val cl = classLoader ?: return
         val name = FolderStore.listGroups().firstOrNull { it.id == groupId }?.name ?: "폴더"
         // Read the group's members INSIDE the post, not before it. A caller that just added an app
@@ -911,7 +912,7 @@ object DrawerFolderRender {
                 members.add(extra)
             }
             if (members.isEmpty()) { Logx.i("render: no members for group $groupId"); return@post }
-            DrawerFolderOverlay.open(cl, viewCtx, members, name, groupId)
+            DrawerFolderOverlay.open(cl, viewCtx, members, name, groupId, sourceIcon)
         }
     }
 
