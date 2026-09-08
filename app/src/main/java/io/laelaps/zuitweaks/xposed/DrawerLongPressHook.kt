@@ -619,6 +619,12 @@ object DrawerLongPressHook {
                             mainHandler.postDelayed({
                                 if (epoch == dragEpoch) {
                                     folderItemDragActive = false
+                                    // Safety net. The deferred removal is normally settled below,
+                                    // on the drawer path; a drag that ended without reaching it
+                                    // must not leave an app suspended between folder and drawer -
+                                    // rendered top-level while still stored as a member. Keeping
+                                    // it in the folder is the outcome that loses nothing.
+                                    resolvePendingFolderRemoval(committed = false)
                                     // App was pulled out of the folder: repaint now, so it appears
                                     // in the drawer only after the held drag has ended.
                                     if (leftBounds) DrawerFolderRender.refresh()
@@ -627,6 +633,9 @@ object DrawerLongPressHook {
                             }, 400)
                         }
                         if (!drawerDragActive) return@guard
+                        // Where the drag ENDED decides whether the app left its folder - not the
+                        // fact that it passed outside the folder panel on the way.
+                        resolvePendingFolderRemoval(committed = !handedOff)
                         // Drop inside the drawer (not handed off to home).
                         if (!handedOff) {
                             when {
@@ -1218,6 +1227,33 @@ object DrawerLongPressHook {
         (XposedHelpers.callMethod(appInfo, "getTargetComponent") as? ComponentName)?.flattenToShortString()
     }.getOrNull()
 
+    /**
+     * Set while a folder member is being dragged outside its folder, cleared when the drag ends.
+     * The removal it describes is only written if the drag ends inside the drawer.
+     */
+    @Volatile private var pendingFolderRemoval: Pair<Long, String>? = null
+
+    /**
+     * Settle a deferred folder drag-out.
+     *
+     * [committed] is "the drag ended in the drawer", i.e. the app really was moved out. A drag that
+     * carried on to the home screen ends with false: the workspace gets its copy and the folder
+     * keeps the app, which is what dragging an app out onto the home screen means everywhere else.
+     */
+    private fun resolvePendingFolderRemoval(committed: Boolean) {
+        val (gid, comp) = pendingFolderRemoval ?: return
+        pendingFolderRemoval = null
+        DrawerFolderRender.pendingDragOut = null
+        if (committed) {
+            runCatching { FolderStore.removeMember(gid, comp) }
+                .onSuccess { Logx.i("folder drag-out: COMMITTED removal of $comp from group $gid") }
+                .onFailure { Logx.e("folder drag-out: removal of $comp failed", it) }
+        } else {
+            Logx.i("folder drag-out: DISCARDED - $comp stays in group $gid (drag ended off the drawer)")
+        }
+        DrawerFolderRender.refresh()
+    }
+
     /** The dragged folder item left the folder panel: pull it out of the group, back to the drawer. */
     private fun onFolderDragLeft() {
         Logx.i("folder drag-out: left folder at ($lastPointerX,$lastPointerY)")
@@ -1225,10 +1261,14 @@ object DrawerLongPressHook {
         if (gid < 0) return
         val tag = runCatching { folderDragIcon?.tag }.getOrNull() ?: return
         val comp = componentKey(tag) ?: return
-        runCatching {
-            FolderStore.removeMember(gid, comp)
-            Logx.i("folder drag-out: removed $comp from group $gid")
-        }
+        // Do NOT remove it yet. Leaving the folder panel is a waypoint, not the destination: the
+        // same gesture continues over the drawer and can carry on to the home screen, and a drop
+        // there means the app was COPIED to the workspace - it never left the folder. Removing on
+        // the way past made the folder lose the app for a drag that only passed through.
+        // Committed or discarded in callOnDragEnd, by where the drag actually ended.
+        pendingFolderRemoval = gid to comp
+        DrawerFolderRender.pendingDragOut = comp
+        Logx.i("folder drag-out: $comp pending removal from group $gid (decided at release)")
         // Hand the still-alive drag to the DRAWER, don't jump straight to home. The app now lives in
         // the drawer context; the existing grid-boundary handoff reveals the home screen only once
         // the pointer ALSO leaves the drawer grid — the overlay -> drawer -> home flow the user
