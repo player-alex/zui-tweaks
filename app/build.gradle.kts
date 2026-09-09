@@ -114,8 +114,8 @@ android {
         applicationId = "io.laelaps.zuitweaks"
         minSdk = 28
         targetSdk = 37
-        versionCode = 3
-        versionName = "1.2-alpha"
+        versionCode = 4
+        versionName = "1.3-alpha"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

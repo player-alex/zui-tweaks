@@ -294,8 +294,19 @@ object DrawerFolderOverlay {
                         Logx.guard("Folder.$name:fullScreenCapture") {
                             val folder = param.thisObject as? View ?: return@guard
                             if (folder !== currentFolder) return@guard
-                            val dl = folder.parent as? ViewGroup ?: return@guard
-                            if (dl.width <= 0 || dl.height <= 0) return@guard
+                            // NOT folder.parent: the capture runs inside c0()/d0() BEFORE
+                            // dragLayer.addView(this), so the folder has no parent yet and reading
+                            // it here silently skipped the whole hook - which is why widening never
+                            // actually happened and the symptom survived. Ask the activity context
+                            // for its drag layer instead, and fall back to the one open() captured.
+                            val dl = runCatching {
+                                val actx = XposedHelpers.getObjectField(folder, "mActivityContext")
+                                XposedHelpers.callMethod(actx, "getDragLayer") as? ViewGroup
+                            }.getOrNull() ?: pendingDragLayer ?: folder.parent as? ViewGroup
+                            if (dl == null || dl.width <= 0 || dl.height <= 0) {
+                                Logx.i("backdrop: no drag layer at capture time; crop left as-is")
+                                return@guard
+                            }
                             val n = XposedHelpers.getObjectField(folder, "N") as? RectF ?: return@guard
                             savedCaptureRect = RectF(n)
                             n.set(0f, 0f, dl.width.toFloat(), dl.height.toFloat())
@@ -541,18 +552,24 @@ object DrawerFolderOverlay {
         // left to clear. If something IS cleared here, the widening did not take on this build and
         // the backdrop is a partial capture pinned near the folder icon - the 18.1.0 symptom. The
         // log line is the signal; it should never appear.
-        fun unpad(where: String) = runCatching {
-            if (v0.paddingLeft != 0 || v0.paddingTop != 0 || v0.paddingRight != 0 || v0.paddingBottom != 0) {
-                Logx.i("blur: backdrop padding $where was " +
-                    "(${v0.paddingLeft},${v0.paddingTop},${v0.paddingRight},${v0.paddingBottom}) -> 0")
-                v0.setPadding(0, 0, 0, 0)
-            }
+        // Report the padding; never change it. The launcher sets it to match the crop exactly, so
+        // a partial crop is drawn 1:1 in the right place - correct, just not full-screen. Zeroing it
+        // does not widen anything; it stretches that partial bitmap over a full-screen content box,
+        // and since this view is a plain AppCompatImageView (FIT_CENTER, no scale type set anywhere
+        // in the launcher) the result is the magnified backdrop that was reported. A widened crop
+        // legitimately produces NEGATIVE padding on 18.2.0, which zeroing would shrink instead.
+        // Widening the crop above is the only correct lever; this line just says whether it worked.
+        fun report(where: String) = runCatching {
+            val d = (v0 as? ImageView)?.drawable
+            Logx.i("blur: backdrop $where padding=(${v0.paddingLeft},${v0.paddingTop}," +
+                "${v0.paddingRight},${v0.paddingBottom}) view=${v0.width}x${v0.height} " +
+                "bitmap=${d?.intrinsicWidth}x${d?.intrinsicHeight} scaleType=${(v0 as? ImageView)?.scaleType}")
         }
         // Deliberately no scaleType override: stretching a partial capture to fill the view is what
         // made the launcher behind an open folder look magnified.
-        unpad("at open")
+        report("at open")
         // The big-folder/taskbar path calls setPadding on this view again after this frame.
-        runCatching { v0.post { Logx.guard("blur: repad") { unpad("next frame") } } }
+        runCatching { v0.post { Logx.guard("blur: report") { report("next frame") } } }
         runCatching {
             v0.setRenderEffect(RenderEffect.createBlurEffect(70f, 70f, Shader.TileMode.DECAL))
             Logx.i("blur: setRenderEffect(70) applied")
