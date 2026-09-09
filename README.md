@@ -847,6 +847,60 @@ touch path is verified; the mouse path is the same code), and the press-scale fl
 on a real external drag (the pin and the end-of-reorder reset both fire, but the accept-scale they mask
 can't be triggered under injection).
 
+## Folder membership, and the picker that fills it
+
+An app belongs to **exactly one** folder. `members.component` is UNIQUE, and adding an app *moves*
+it: it leaves whatever folder it was in, and a folder left holding one app is dissolved - the rule
+`cleanup()` already applied at startup, applied at the moment it becomes true. Without that
+constraint the same app could sit in two folders, and since the drawer maps each app to a single
+folder, it would show in one and be stored in the other: added to a folder, back in its old one on
+the next render.
+
+The folder's own **앱 추가** picker is mirrored into the store, and finding where to do that was the
+whole difficulty. `FolderInfo.add(ItemInfo)` is the obvious hook and the wrong one - it has exactly
+one caller in the entire launcher, the startup loader, so it fires while the launcher restores its
+own folders and never from the UI. A hook there logged four calls at every launcher start and not
+one when a user added an app. The picker is `BigFolderIconSelectDialog`, and it calls
+`Folder.addFolderContent(item, rank, animate)`, appending straight into `mInfo.getContents()`;
+unchecking a member calls `Folder.removeFolderContent`. Both are public, keep their names across
+18.1.0 and 18.2.0, and every overload funnels into the widest one. Both are mirrored, because the
+picker adds *and* removes - mirroring only the add produces the same inconsistency in the other
+direction.
+
+`addFolderContent` also calls `ModelWriter.addOrMoveItemInDatabase(item, mInfo.id, …)`. This
+module's `FolderInfo` is transient, `id = -1`, with no row of its own, so each add through the
+picker was inserting a **real favorites row with `container = -1`** - an orphan belonging to no
+folder, which the next launcher start loaded back and handed to `FolderInfo.add`. Those startup
+calls were not the loader being tidy; they were this module's litter returning. The launcher's model
+writes are suppressed while one of our own `addFolderContent` calls is on the stack.
+
+## Folder open and close animate on the folder's icon
+
+The close animator builds its target rect live, at close time, from `mFolderIcon`'s left and top -
+nothing is captured at open. The synthetic anchor icon this module creates used to sit at the screen
+centre, so folders collapsed into the middle of the screen; removing the anchor after the open does
+not undo that, because `removeView` leaves `mLeft/mTop` intact and a detached view still reports
+where it was last laid out. The anchor is placed on the real drawer icon instead, and `layout()` is
+called explicitly as well as setting the layout params, because the anchor is removed before the
+drag layer's next layout pass. Open comes along for free: the two directions share one rect and only
+swap from/to.
+
+## The blurred backdrop behind an open folder
+
+The launcher screenshots itself into `ZuiFolderBgImageView` and then pads that view down to exactly
+the rect it captured, so even a partial capture is drawn 1:1 in the right place. 18.2.0 expands the
+crop to *at least* the whole drag layer (plus a 100px margin, hence its negative padding); 18.1.0
+only unions the folder icon's rect with the folder body and does not expand, so its capture is a
+small box anchored on the icon. Widening `Folder.N` to the drag layer before the capture runs makes
+the union full-screen on either build, and the padding then comes out zero on its own.
+
+Two things that look like fixes and are not. **Do not zero that padding**: it puts a partial bitmap
+in a full-screen content box on a view the launcher never assigns a scale type, and `FIT_CENTER`
+magnifies it - the "launcher looks zoomed in behind the folder" report - while on 18.2.0 it shrinks
+the image instead by discarding a deliberate negative padding. **Do not stretch it** with `FIT_XY`
+either, for the same reason in a different disguise. Widening the crop is the only lever; the
+`blur: backdrop …` log line reports the padding so it is clear whether it worked.
+
 ## Drawer custom ordering (drag-to-reorder)
 
 The drawer is normally `AlphabeticalAppsList` (fixed A-Z). This lets the user set a custom order.
