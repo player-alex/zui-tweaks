@@ -139,9 +139,91 @@ object DrawerFolderOverlay {
                     }
                 }
             })
+
             // Persist a user rename: when the OPEN overlay's FolderInfo title changes, write it to
             // our store and repaint the drawer. Only our folder (identity match) is affected.
             val fiCls = XposedHelpers.findClass(FOLDER_INFO, cl)
+            // Persist what the folder's own "앱 추가" adds. The launcher's add-apps sheet calls
+            // FolderInfo.add(), and its normal persistence is updateItemLocationsInDatabaseBatch -
+            // which the guard above suppresses for our transient folder, because it would write into
+            // the launcher's favorites DB. Nothing then wrote it into OUR store either, so the app
+            // appeared in the open folder and was gone the moment the drawer re-rendered.
+            //
+            // Skipped while guardActive: that is our own open() building the folder from members it
+            // already has, and re-adding those would be a no-op at best.
+            // Mirror what the folder's own "앱 추가" picker does.
+            //
+            // It does NOT go through FolderInfo.add - that has exactly one caller in the whole APK,
+            // the startup loader, which is why a hook there fired only when the launcher restored
+            // its own folders and never from the UI. The picker (BigFolderIconSelectDialog) calls
+            // Folder.addFolderContent(item, rank, animate), which appends straight into
+            // mInfo.getContents(), and Folder.removeFolderContent(...) for the ones it unchecks.
+            // Both are public and keep their names on both builds; every overload funnels into the
+            // widest one, and addMember/removeMember are idempotent, so hooking them all is safe.
+            val contentHook = object : XC_MethodHook() {
+                override fun beforeHookedMethod(param: MethodHookParam) {
+                    Logx.guard("Folder.addFolderContent:pre") {
+                        if (isOurFolder(param.thisObject)) modelWriteDepth++
+                    }
+                }
+
+                override fun afterHookedMethod(param: MethodHookParam) {
+                    Logx.guard("Folder.addFolderContent:persist") {
+                        if (!isOurFolder(param.thisObject)) return@guard
+                        if (modelWriteDepth > 0) modelWriteDepth--
+                        val key = componentOf(param.args?.getOrNull(0)) ?: return@guard
+                        FolderStore.addMember(currentGroupId, key)
+                        Logx.i("folder add: $key -> group $currentGroupId (persisted)")
+                        DrawerFolderRender.refresh()
+                    }
+                }
+            }
+            val removeHook = object : XC_MethodHook() {
+                override fun afterHookedMethod(param: MethodHookParam) {
+                    Logx.guard("Folder.removeFolderContent:persist") {
+                        if (!isOurFolder(param.thisObject)) return@guard
+                        val items = param.args?.firstOrNull { it is Array<*> } as? Array<*> ?: return@guard
+                        var n = 0
+                        for (it in items) {
+                            val key = componentOf(it) ?: continue
+                            FolderStore.removeMember(currentGroupId, key)
+                            n++
+                        }
+                        if (n > 0) {
+                            Logx.i("folder remove: $n app(s) out of group $currentGroupId (persisted)")
+                            DrawerFolderRender.refresh()
+                        }
+                    }
+                }
+            }
+            val ch = runCatching { XposedBridge.hookAllMethods(folderCls, "addFolderContent", contentHook).size }.getOrDefault(0)
+            val rh = runCatching { XposedBridge.hookAllMethods(folderCls, "removeFolderContent", removeHook).size }.getOrDefault(0)
+            Logx.i("drawer folder overlay: folder-content hooks installed (add=$ch remove=$rh)")
+
+            // addFolderContent also writes the item to the LAUNCHER's favorites database, via
+            // ModelWriter.addOrMoveItemInDatabase(item, mInfo.id, ...). Our FolderInfo is a transient
+            // one with id = -1 and no row of its own, so every add through the picker was inserting a
+            // real favorites row with container = -1: an orphan that belongs to no folder, which the
+            // next launcher start then loads and hands to FolderInfo.add - exactly the startup adds
+            // seen in the log. Suppressed while one of OUR addFolderContent calls is on the stack.
+            val mw = runCatching {
+                val mwCls = XposedHelpers.findClass("com.android.launcher3.model.ModelWriter", cl)
+                val guard = object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        Logx.guard("ModelWriter:guard") {
+                            if (modelWriteDepth > 0) {
+                                param.setResult(null)
+                                Logx.i("model write suppressed for our transient folder")
+                            }
+                        }
+                    }
+                }
+                listOf("addOrMoveItemInDatabase", "addItemToDatabase")
+                    .sumOf { XposedBridge.hookAllMethods(mwCls, it, guard).size }
+            }.getOrDefault(0)
+            Logx.i("drawer folder overlay: model-write guard installed ($mw method(s))")
+
+
             XposedBridge.hookAllMethods(fiCls, "setTitle", object : XC_MethodHook() {
                 override fun afterHookedMethod(param: MethodHookParam) {
                     Logx.guard("FolderInfo.setTitle:persist") {
@@ -619,6 +701,22 @@ object DrawerFolderOverlay {
         if (view.width <= 0 || view.height <= 0) return null
         Rect(v[0] - d[0], v[1] - d[1], v[0] - d[0] + view.width, v[1] - d[1] + view.height)
     }.getOrNull()
+
+    /** Depth of our own addFolderContent calls, while which the launcher's DB writes are dropped. */
+    @Volatile private var modelWriteDepth = 0
+
+    /** True when [obj] is the Folder view we opened (compared through its FolderInfo). */
+    private fun isOurFolder(obj: Any?): Boolean {
+        if (obj == null || currentGroupId < 0 || currentFolderInfo == null) return false
+        if (obj === currentFolder) return true
+        return runCatching { XposedHelpers.getObjectField(obj, "mInfo") }.getOrNull() === currentFolderInfo
+    }
+
+    /** An item's launcher component key, or null if it has none (the "앱 추가" button itself). */
+    private fun componentOf(item: Any?): String? = item?.let {
+        (runCatching { XposedHelpers.callMethod(it, "getTargetComponent") }.getOrNull() as? ComponentName)
+            ?.flattenToShortString()?.takeIf { k -> k.isNotBlank() && !k.startsWith("/") }
+    }
 
     /** Hide the drop-target bar left visible at the top by our suppressed drag-end. */
     private fun hideDropTargetBar(dl: ViewGroup) {

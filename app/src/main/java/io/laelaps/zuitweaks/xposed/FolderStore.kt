@@ -22,7 +22,7 @@ import android.database.sqlite.SQLiteOpenHelper
 object FolderStore {
 
     private const val DB_NAME = "zuitweaks_folders.db"
-    private const val DB_VERSION = 2
+    private const val DB_VERSION = 3
 
     @Volatile private var helper: Helper? = null
 
@@ -32,12 +32,26 @@ object FolderStore {
         override fun onCreate(db: SQLiteDatabase) {
             db.execSQL("CREATE TABLE groups (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, ord INTEGER NOT NULL DEFAULT 0)")
             db.execSQL("CREATE TABLE members (group_id INTEGER NOT NULL, component TEXT NOT NULL, ord INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(group_id, component))")
-            db.execSQL("CREATE INDEX idx_members_component ON members(component)")
+            // UNIQUE, not just indexed: an app belongs to exactly one folder. Without this the
+            // same component could sit in two groups, and the renderer - which builds a single
+            // component -> group map - would silently pick whichever it saw last. That is how an
+            // app could look added to one folder yet reappear in its old one on the next render.
+            db.execSQL("CREATE UNIQUE INDEX idx_members_component ON members(component)")
             db.execSQL("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)")
         }
 
         override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
             if (oldVersion < 2) db.execSQL("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)")
+            if (oldVersion < 3) {
+                // Collapse any app that already sits in more than one folder, keeping its first
+                // membership, before the unique index can be created.
+                db.execSQL(
+                    "DELETE FROM members WHERE rowid NOT IN " +
+                        "(SELECT MIN(rowid) FROM members GROUP BY component)",
+                )
+                db.execSQL("DROP INDEX IF EXISTS idx_members_component")
+                db.execSQL("CREATE UNIQUE INDEX idx_members_component ON members(component)")
+            }
         }
     }
 
@@ -179,16 +193,49 @@ object FolderStore {
         }
     }
 
+    /**
+     * Put [component] in [groupId], taking it out of whatever folder it was in.
+     *
+     * A move, not a copy. Adding an app that already lives in another folder used to insert a second
+     * row, and since the renderer maps each component to one group, the app then showed in one
+     * folder and was stored in the other - it looked added, and came back in its old folder on the
+     * next render. Membership is exclusive, so the add has to be the thing that ends the old one.
+     */
     fun addMember(groupId: Long, component: String) {
         val d = db() ?: return
         try {
+            d.beginTransaction()
+            val from = groupIdFor(component)
+            if (from == groupId) { d.setTransactionSuccessful(); return }
+            if (from != null) {
+                d.delete("members", "component=?", arrayOf(component))
+                Logx.i("FolderStore: moving $component from group $from to $groupId")
+            }
             val ord = nextMemberOrder(d, groupId)
             d.insertWithOnConflict("members", null, ContentValues().apply {
                 put("group_id", groupId); put("component", component); put("ord", ord)
-            }, SQLiteDatabase.CONFLICT_IGNORE)
+            }, SQLiteDatabase.CONFLICT_REPLACE)
+            if (from != null) pruneIfTooSmall(d, from)
+            d.setTransactionSuccessful()
         } catch (t: Throwable) {
             Logx.e("FolderStore.addMember failed", t)
+        } finally {
+            runCatching { d.endTransaction() }
         }
+    }
+
+    /**
+     * A folder needs at least two apps to be a folder; [cleanup] applies the same rule at startup.
+     * Enforce it here too, so moving an app out of a two-app folder dissolves it there and then
+     * instead of leaving a one-app folder until the next launch.
+     */
+    private fun pruneIfTooSmall(d: SQLiteDatabase, groupId: Long) {
+        val n = d.rawQuery("SELECT COUNT(*) FROM members WHERE group_id=?", arrayOf(groupId.toString()))
+            .use { if (it.moveToNext()) it.getInt(0) else 0 }
+        if (n >= 2) return
+        d.delete("members", "group_id=?", arrayOf(groupId.toString()))
+        d.delete("groups", "id=?", arrayOf(groupId.toString()))
+        Logx.i("FolderStore: group $groupId dissolved (only $n app left)")
     }
 
     fun removeMember(groupId: Long, component: String) {
@@ -356,11 +403,17 @@ object FolderStore {
     // ---- internals -------------------------------------------------------------------------
 
     private fun writeMembers(d: SQLiteDatabase, groupId: Long, components: List<String>) {
+        // Exclusive membership again: these apps leave whatever folder they were in. CONFLICT_REPLACE
+        // alone would do it via the unique index, but doing it explicitly keeps the intent readable
+        // and lets a group emptied by the move be dissolved below.
+        val donors = components.mapNotNull { c -> groupIdFor(c)?.takeIf { it != groupId } }.distinct()
+        components.forEach { c -> d.delete("members", "component=? AND group_id<>?", arrayOf(c, groupId.toString())) }
         components.forEachIndexed { i, c ->
             d.insertWithOnConflict("members", null, ContentValues().apply {
                 put("group_id", groupId); put("component", c); put("ord", i)
             }, SQLiteDatabase.CONFLICT_REPLACE)
         }
+        donors.forEach { pruneIfTooSmall(d, it) }
     }
 
     private fun nextGroupOrder(d: SQLiteDatabase): Int =
